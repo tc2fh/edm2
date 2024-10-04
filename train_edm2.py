@@ -59,7 +59,7 @@ def setup_training_config(preset='edm2-img512-s', **opts):
         raise click.ClickException(f'--data: {err}')
 
     # Encoder.
-    if dataset_channels == 3:
+    if dataset_channels == 3 or dataset_channels == 1: #modify to allow for binary image input using StandardRGBEncoder
         c.encoder_kwargs = dnnlib.EasyDict(class_name='training.encoders.StandardRGBEncoder')
     elif dataset_channels == 8:
         c.encoder_kwargs = dnnlib.EasyDict(class_name='training.encoders.StabilityVAEEncoder')
