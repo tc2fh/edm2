@@ -229,7 +229,7 @@ def training_loop(
 
                 # Log loss to TensorBoard
                 if dist.get_rank() == 0:
-                    writer.add_scalar('Loss/train_step', loss.item(), state.cur_nimg)
+                    writer.add_scalar('Loss/train_step', loss.mean().item(), state.cur_nimg)
 
                 loss.sum().mul(loss_scaling / batch_gpu_total).backward()
 
