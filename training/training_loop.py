@@ -19,6 +19,7 @@ from torch_utils import distributed as dist
 from torch_utils import training_stats
 from torch_utils import persistence
 from torch_utils import misc
+from torch.utils.tensorboard import SummaryWriter
 
 #----------------------------------------------------------------------------
 # Uncertainty-based loss function (Equations 14,15,16,21) proposed in the
@@ -87,6 +88,9 @@ def training_loop(
     torch.backends.cudnn.allow_tf32 = False
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = False
+
+    # Initialize TensorBoard writer
+    writer = SummaryWriter(log_dir=os.path.join(run_dir, 'tensorboard_logs'))
 
     # Validate batch size.
     batch_gpu_total = batch_size // dist.get_world_size()
@@ -222,7 +226,13 @@ def training_loop(
                 images = encoder.encode_latents(images.to(device))
                 loss = loss_fn(net=ddp, images=images, labels=labels.to(device))
                 training_stats.report('Loss/loss', loss)
+
+                # Log loss to TensorBoard
+                if dist.get_rank() == 0:
+                    writer.add_scalar('Loss/train_step', loss.item(), state.cur_nimg)
+
                 loss.sum().mul(loss_scaling / batch_gpu_total).backward()
+
 
         # Run optimizer and update weights.
         lr = dnnlib.util.call_func_by_name(cur_nimg=state.cur_nimg, batch_size=batch_size, **lr_kwargs)
@@ -240,5 +250,8 @@ def training_loop(
         if ema is not None:
             ema.update(cur_nimg=state.cur_nimg, batch_size=batch_size)
         cumulative_training_time += time.time() - batch_start_time
+
+    #close tensorboard writer
+    writer.close()
 
 #----------------------------------------------------------------------------
