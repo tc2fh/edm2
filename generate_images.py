@@ -196,6 +196,9 @@ def generate_images(
             return len(rank_batches)
 
         def __iter__(self):
+            # added print statements for debugging image generation
+            print('img_channels:', net.img_channels)
+            print('img_resolution:', net.img_resolution)
             # Loop over batches.
             for batch_idx, indices in enumerate(rank_batches):
                 r = dnnlib.EasyDict(images=None, labels=None, noise=None, batch_idx=batch_idx, num_batches=len(rank_batches), indices=indices)
