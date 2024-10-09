@@ -225,7 +225,10 @@ def generate_images(
                         for seed, image in zip(r.seeds, r.images.permute(0, 2, 3, 1).cpu().numpy()):
                             image_dir = os.path.join(outdir, f'{seed//1000*1000:06d}') if subdirs else outdir
                             os.makedirs(image_dir, exist_ok=True)
-                            PIL.Image.fromarray(image, 'RGB').save(os.path.join(image_dir, f'{seed:06d}.png'))
+                            if net.img_channels == 1: #added if statement to add support for single channel grayscale images
+                                PIL.Image.fromarray(image, 'L').save(os.path.join(image_dir, f'{seed:06d}.png'))
+                            else:
+                                PIL.Image.fromarray(image, 'RGB').save(os.path.join(image_dir, f'{seed:06d}.png'))
 
                 # Yield results.
                 torch.distributed.barrier() # keep the ranks in sync
