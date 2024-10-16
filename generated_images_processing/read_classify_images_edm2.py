@@ -64,8 +64,5 @@ def main():
         for label, count in zip(unique_labels, counts):
             logging.info(f"Label {label} has {count} images")
 
-
-
-
 if __name__ == "__main__":
     main()
