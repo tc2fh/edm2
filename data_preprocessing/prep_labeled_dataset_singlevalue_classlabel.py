@@ -90,13 +90,13 @@ with zipfile.ZipFile(output_zip_path, 'w') as zipf:
         # Write the image to the zip file
         zipf.writestr(img_filename, img_buffer.read())
 
-# Create a new dictionary for shuffled labels
-shuffled_labels_dict = {img_filename: label for img_filename, label, _ in images_and_labels}
+# Create a list of lists for shuffled labels
+shuffled_labels_list = [[img_filename, label] for img_filename, label, _ in images_and_labels]
 
-# Save the shuffled labels dictionary as a JSON file in the zip folder
+# Save the shuffled labels list as a JSON file in the zip folder
 labels_json_path = os.path.join(output_zip_dir, 'dataset.json')
 with open(labels_json_path, 'w') as json_file:
-    json.dump({'labels': shuffled_labels_dict}, json_file)
+    json.dump({'labels': shuffled_labels_list}, json_file)
 
 # Add the JSON file to the zip file
 with zipfile.ZipFile(output_zip_path, 'a') as zipf:
