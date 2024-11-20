@@ -3,8 +3,7 @@
 load all data from the .zarr.zip files and save to an uncompressed zip file with a class label
 class labels are single integer values that correspond to the classes of the trained classifier
 
-note: this makes 3 channel rgb images where r=g=b
-
+note: this keeps images as single channel images from the original dataset
 '''
 
 import os
@@ -41,7 +40,7 @@ def extract_params_from_foldername(filename):
 data_path = '/scratch/tc2fh/Angiogenesis_Generative_data/' # path to Angiogenesis_Generative_data, where each folder contains simulation replicates of a specific parameter set
 
 # Create a new zip file to store individual images
-zip_filename = 'edm2_singlevalue_labeled.zip'
+zip_filename = 'edm2_singlevalue_labeled_singlechannel.zip'
 output_zip_dir = '/scratch/tc2fh/Angiogenesis_Generative_data/'
 output_zip_path = os.path.join(output_zip_dir, zip_filename)
 
@@ -70,11 +69,8 @@ for folder in tqdm(os.listdir(data_path)):
                 images_uint8 = (images * 255).astype(np.uint8)
                 
                 for idx, img in enumerate(images_uint8):
-                    # Stack the single channel 3 times to create a 3-channel RGB image
-                    img_rgb = np.stack([img]*3, axis=-1)
-                    
                     # Convert the numpy array to a PIL Image
-                    pil_img = Image.fromarray(img_rgb)
+                    pil_img = Image.fromarray(img)
                     
                     # Save image to a bytes buffer
                     img_buffer = io.BytesIO()

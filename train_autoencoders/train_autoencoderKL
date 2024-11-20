@@ -1,0 +1,25 @@
+from diffusers import AutoencoderKL
+
+class CustomVAEEncoder(Encoder):
+    def __init__(self, model_path):
+        super().__init__()
+        self.vae = AutoencoderKL(
+            in_channels=1,
+            out_channels=1,
+            latent_channels=4,
+            block_out_channels=(64, 128, 256, 512),
+            down_block_types=("DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D"),
+            up_block_types=("UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D")
+        )
+        self.vae.load_state_dict(torch.load(model_path))
+        self.vae.eval()
+
+    def encode_pixels(self, x):
+        return self.vae.encode(x)['latent_dist'].mean  # Modify as per your use case
+
+    def encode_latents(self, x):
+        # Add any final transformations to latents if needed
+        return x
+
+    def decode(self, x):
+        return self.vae.decode(x)['sample']
