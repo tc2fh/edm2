@@ -23,3 +23,62 @@ class CustomVAEEncoder(Encoder):
 
     def decode(self, x):
         return self.vae.decode(x)['sample']
+
+
+from diffusers import AutoencoderKL
+
+# Initialize the autoencoder for single-channel images
+autoencoder = AutoencoderKL(
+    in_channels=1,  # Single-channel input
+    out_channels=1,  # Single-channel output
+    down_block_types=("DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D"),
+    up_block_types=("UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D"),
+    block_out_channels=(64, 128, 256, 512),  # Adjust based on your computational resources
+    latent_channels=4,  # Keep this to match StabilityVAEEncoder's latent space
+    sample_size=256,  # Adjust based on your image size
+)
+
+import torch
+from torch.utils.data import Dataset
+from PIL import Image
+import zipfile
+import io
+
+class BinaryImageDataset(Dataset):
+    def __init__(self, zip_path, transform=None):
+        self.zip_path = zip_path
+        self.transform = transform
+        self.zip_file = zipfile.ZipFile(zip_path)
+        self.image_filenames = [name for name in self.zip_file.namelist() if name.endswith('.png')]
+        # Load labels from dataset.json
+        with self.zip_file.open('dataset.json') as f:
+            import json
+            data = json.load(f)
+            self.labels = {item[0]: item[1] for item in data['labels']}
+    
+    def __len__(self):
+        return len(self.image_filenames)
+    
+    def __getitem__(self, idx):
+        img_name = self.image_filenames[idx]
+        with self.zip_file.open(img_name) as img_file:
+            image = Image.open(img_file).convert('L')  # Ensure it's single-channel
+            if self.transform:
+                image = self.transform(image)
+            else:
+                image = torch.tensor(np.array(image), dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+        label = self.labels[img_name]
+        return {'image': image, 'label': label}
+
+from torch.utils.data import DataLoader
+
+# Define any transformations if needed
+from torchvision import transforms
+
+transform = transforms.Compose([
+    transforms.ToTensor(),  # Converts to [0,1] range
+])
+
+# Initialize dataset and dataloader
+dataset = BinaryImageDataset(output_zip_path, transform=transform)
+data_loader = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=4)
