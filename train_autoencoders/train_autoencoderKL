@@ -1,31 +1,14 @@
 from diffusers import AutoencoderKL
+from torch.utils.data import DataLoader
+from torchvision import transforms
+import torch.optim as optim
+import torch
+from torch.utils.data import Dataset
+from PIL import Image
+import zipfile
+import io
+from tqdm import tqdm
 
-class CustomVAEEncoder(Encoder):
-    def __init__(self, model_path):
-        super().__init__()
-        self.vae = AutoencoderKL(
-            in_channels=1,
-            out_channels=1,
-            latent_channels=4,
-            block_out_channels=(64, 128, 256, 512),
-            down_block_types=("DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D"),
-            up_block_types=("UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D")
-        )
-        self.vae.load_state_dict(torch.load(model_path))
-        self.vae.eval()
-
-    def encode_pixels(self, x):
-        return self.vae.encode(x)['latent_dist'].mean  # Modify as per your use case
-
-    def encode_latents(self, x):
-        # Add any final transformations to latents if needed
-        return x
-
-    def decode(self, x):
-        return self.vae.decode(x)['sample']
-
-
-from diffusers import AutoencoderKL
 
 # Initialize the autoencoder for single-channel images
 autoencoder = AutoencoderKL(
@@ -33,16 +16,10 @@ autoencoder = AutoencoderKL(
     out_channels=1,  # Single-channel output
     down_block_types=("DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D", "DownEncoderBlock2D"),
     up_block_types=("UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D", "UpDecoderBlock2D"),
-    block_out_channels=(64, 128, 256, 512),  # Adjust based on your computational resources
-    latent_channels=4,  # Keep this to match StabilityVAEEncoder's latent space
-    sample_size=256,  # Adjust based on your image size
+    block_out_channels=(64, 128, 256, 512), 
+    latent_channels=4,  # Keep this to match StabilityVAEEncoder's latent space for edm2 training
+    sample_size=256,  # Input image size
 )
-
-import torch
-from torch.utils.data import Dataset
-from PIL import Image
-import zipfile
-import io
 
 class BinaryImageDataset(Dataset):
     def __init__(self, zip_path, transform=None):
@@ -70,15 +47,88 @@ class BinaryImageDataset(Dataset):
         label = self.labels[img_name]
         return {'image': image, 'label': label}
 
-from torch.utils.data import DataLoader
 
-# Define any transformations if needed
-from torchvision import transforms
 
 transform = transforms.Compose([
     transforms.ToTensor(),  # Converts to [0,1] range
 ])
 
 # Initialize dataset and dataloader
+output_zip_path = '' #fill in later
 dataset = BinaryImageDataset(output_zip_path, transform=transform)
 data_loader = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=4)
+
+criterion = torch.nn.BCEWithLogitsLoss()
+
+# Move autoencoder to device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+autoencoder.to(device)
+
+optimizer = optim.Adam(autoencoder.parameters(), lr=1e-4)
+
+num_epochs = 100  # Adjust as needed
+
+for epoch in range(num_epochs):
+    autoencoder.train()
+    running_loss = 0.0
+    for batch in tqdm(data_loader):
+        images = batch['image'].to(device)  # Shape: [batch_size, 1, H, W]
+        
+        optimizer.zero_grad()
+        
+        # Forward pass
+        outputs = autoencoder(images).sample  # Use .sample to get reconstructed images
+        
+        # Compute loss
+        loss = criterion(outputs, images)
+        
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+        
+        running_loss += loss.item()
+    
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(data_loader):.4f}")
+
+
+
+## used for after training in the edm code
+# class CustomVAEEncoder(Encoder):
+#     def __init__(self, autoencoder, raw_mean, raw_std, final_mean=0, final_std=0.5, batch_size=8):
+#         super().__init__()
+#         self.autoencoder = autoencoder
+#         self.scale = np.float32(final_std) / np.float32(raw_std)
+#         self.bias = np.float32(final_mean) - np.float32(raw_mean) * self.scale
+#         self.batch_size = batch_size
+
+#     def init(self, device):
+#         super().init(device)
+#         self.autoencoder.to(device).eval()
+
+#     def encode_pixels(self, x):
+#         self.init(x.device)
+#         x = x.to(torch.float32) / 255.0  # Normalize to [0,1]
+#         with torch.no_grad():
+#             latent_dist = self.autoencoder.encode(x)['latent_dist']
+#             mean = latent_dist.mean
+#             std = latent_dist.std
+#             return torch.cat([mean, std], dim=1)
+
+#     def encode_latents(self, x):
+#         mean, std = x.to(torch.float32).chunk(2, dim=1)
+#         eps = torch.randn_like(mean)
+#         z = mean + eps * std
+#         z = z * torch.tensor(self.scale, device=z.device).reshape(1, -1, 1, 1)
+#         z = z + torch.tensor(self.bias, device=z.device).reshape(1, -1, 1, 1)
+#         return z
+
+#     def decode(self, x):
+#         self.init(x.device)
+#         x = x.to(torch.float32)
+#         x = x - torch.tensor(self.bias, device=x.device).reshape(1, -1, 1, 1)
+#         x = x / torch.tensor(self.scale, device=x.device).reshape(1, -1, 1, 1)
+#         with torch.no_grad():
+#             reconstructed = self.autoencoder.decode(x).sample
+#         reconstructed = reconstructed.clamp(0, 1).mul(255).to(torch.uint8)
+#         return reconstructed
+
