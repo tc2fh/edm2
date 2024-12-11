@@ -46,16 +46,16 @@ conda activate edm2
 MODEL_PATH="${dir_name}/training-runs/network-snapshot-0012748-0.100.pkl"
 OUTDIR="${dir_name}/gen_images"
 
-mkdir -p "$OUTDIR"
+mkdir -p "\$OUTDIR"
 
-torchrun --standalone --nproc_per_node=4 /scratch/tc2fh/edm2_diffusion/edm2/generate_images.py --net=$MODEL_PATH --outdir=$OUTDIR --seeds=0-19999 --steps=32
+torchrun --standalone --nproc_per_node=4 /scratch/tc2fh/edm2_diffusion/edm2/generate_images.py --net="\$MODEL_PATH" --outdir="\$OUTDIR" --seeds=0-19999 --steps=32
 
 conda deactivate
 
 #classify images with trained classifier
 
 export CLASSIFIER_CKPT_PATH=/scratch/tc2fh/diffusion_classifier/testing_output_logs/lr00001/classifier/version_0/checkpoints/model-epoch=393-val_loss=0.02.ckpt
-export IMG_DIR="$OUTDIR"
+export IMG_DIR="\$OUTDIR"
 
 conda activate diffusers_cuda124
 
@@ -63,10 +63,10 @@ conda activate diffusers_cuda124
 EXTERNAL_DIR="/scratch/tc2fh/edm2_diffusion/generate_images_bii_gpu/count_generated_images"
 
 # Add the external directory to PYTHONPATH
-export PYTHONPATH="$EXTERNAL_DIR:$PYTHONPATH"
+export PYTHONPATH="\$EXTERNAL_DIR:$\PYTHONPATH"
 
-chmod +x "$EXTERNAL_DIR/read_classify_images_edm2.py"
-python -u "$EXTERNAL_DIR/read_classify_images_edm2.py"
+chmod +x "\$EXTERNAL_DIR/read_classify_images_edm2.py"
+python -u "\$EXTERNAL_DIR/read_classify_images_edm2.py"
 
 # Record the end time
 end_time=\$(date +%s)
